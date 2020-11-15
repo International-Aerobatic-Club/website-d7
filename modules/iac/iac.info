@@ -1,0 +1,3 @@
+name = IAC
+description = Utility functions for the International Aerobatic Club web site
+core = 7.x

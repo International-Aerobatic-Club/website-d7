@@ -1,0 +1,907 @@
+<?php
+
+# Utility module for the International Aerobatic Club web site
+# DJM, 2015-04-05
+
+# Load a Drupal user by their IAC number
+function iac_load_user_by_iac_number($iac_number) {
+
+  $profile_query = new EntityFieldQuery();
+  $profile_results = $profile_query->entityCondition('entity_type', 'profile2', '=')
+    ->fieldCondition('field_iac_number', 'value', $iac_number, '=')
+    ->execute();
+
+  if (empty($profile_results['profile2'])) { return(NULL); }
+
+  $r = array_keys($profile_results['profile2']);
+  $profile = profile2_load($r[0]);
+
+  return(user_load($profile->uid));
+
+}
+
+
+
+# Get all Judges School records from the previous three calendar years
+function iac_judges_school_attendees() {
+
+  # Holds the return values (array of Users.uid)
+  $students = Array();
+
+  # Calculate timestamp for three calendar years ago
+  $prev_year3_ts = strtotime((intval(date('Y')) - 3) . "-01-01");
+
+  # Get matching school records
+  $school_query = new EntityFieldQuery();
+  $school_results = $school_query->entityCondition('entity_type', 'node', '=')
+    ->propertyCondition('type', 'judges_school')
+    ->propertyCondition('status', NODE_PUBLISHED)
+    ->fieldCondition('field_dates_and_times_with_tz', 'value', $prev_year3_ts, '>=')
+    ->fieldCondition('field_dates_and_times_with_tz', 'value', time(), '<')
+    ->fieldOrderBy('field_dates_and_times_with_tz', 'value')
+    ->execute();
+
+  if (empty($school_results['node'])) { return($students); }
+
+  $schools = node_load_multiple(array_keys($school_results['node']));
+
+
+
+  # Loop through each school
+  foreach($schools as $school) {
+
+    # Get the (integer) year in which the school was conducted
+    $school_year = intval(date('Y', $school->field_dates_and_times_with_tz['und'][0]['value']));
+
+    # Loop through the students
+    if (sizeof($school->field_students['und']) > 0) {
+      foreach($school->field_students['und'] as $student) {
+        $sid = $student['target_id'];
+        if (empty($students[$sid]) || $students[$sid] < $school_year) { $students[$sid] = $school_year; }
+      }
+    }
+
+    # Give credit to the instructor as well
+    if (sizeof($school->field_assigned_to) > 0) {
+      $iid = $school->field_assigned_to['und'][0]['target_id'];
+      if (empty($students[$iid]) || $students[$iid] < $school_year) { $students[$iid] = $school_year; }
+    }
+
+  }
+
+  return($students);
+
+}
+
+
+
+# Get a list of all users who passed the current year's R&C Exam
+
+function iac_users_who_passed_rc_exam($judges) {
+
+  # Array of results, one entry per judge
+  $results = Array();
+
+  # Titles of each year's R&C exam. Will need to update this annually.
+  # Or come up with a more clever way of finding them. Using tags, perhaps?
+  $rc_exams = Array(
+    2015 => '2015 Judges Revalidation & Currency Exam',
+    2016 => '2016 Judge Revalidation & Currency Exam',
+    2017 => '2017 JUDGE REVALIDATION & CURRENCY EXAM',
+    2018 => '2018 Judges Revalidation & Currency Exam',
+    2019 => '2019 Judges Revalidation & Currency Exam',
+    2020 => '2020 Judges Revalidation & Currency Exam',
+  );
+
+  $current_year = intval(date('Y'));
+
+  # Locate this year's R&C Exam node
+  if (empty($rc_exams[intval($current_year)])) {
+    print "<em>(not published yet)</em> ";
+    return;
+  }
+
+
+  $exam_query = new EntityFieldQuery();
+
+  $exam_results = $exam_query->entityCondition('entity_type', 'node')
+    ->propertyCondition('type', 'quiz')
+    ->propertyCondition('title', $rc_exams[$current_year])
+    ->propertyCondition('status', NODE_PUBLISHED)
+    ->propertyCondition('status', 1)
+    ->execute();
+
+  if (empty($exam_results['node'])) {
+    print "Can't locate Quiz node: $rc_exams[$current_year].\n";
+    return;
+  }
+
+  # Load the current R&C exam node
+  # (Using temp var to avoid 'Only variables should be passed by reference' from stoopid PHP)
+  $ak = array_keys($exam_results['node']);
+  $nid = array_shift($ak);
+  $rc_exam = node_load($nid);
+
+  # Collect all vid values for this R&C exam, because User A may pass the exam, then
+  # someone changes the exam which in turn creates a new vid, then User B passes the
+  # exam. And the Quiz module's quiz_is_passed method only takes a scalar vid. (eye roll)
+
+  $rc_vids = Array();
+  foreach(node_revision_list($rc_exam) as $rev) { $rc_vids[] = $rev->vid; }
+
+  # See if each judge has passed this year's R&C exam
+  foreach($judges as $jid) {
+
+    $results[$jid] = FALSE;
+
+    foreach ($rc_vids as $vid) {
+      if (quiz_is_passed($jid, $rc_exam->nid, $vid)) {
+        $results[$jid] = TRUE;
+        break;
+      }
+    }
+
+  }
+
+  return $results;
+
+}
+
+
+/* Select a banner image at random */
+function _iac_cover_images($img_type) {
+  
+  $hdir      = "files/images/headers/$img_type";
+  $image_dir = DRUPAL_ROOT . "/sites/www.iac.org/" . $hdir;
+  $images    = array();
+  
+  if ($handle = opendir($image_dir)) {
+    
+    /* This is the correct way to loop over the directory. */
+    while (false !== ($entry = readdir($handle))) {
+      if (is_file("$image_dir/$entry") && preg_match("/\.jpg$|\.gif$|\.png$/i", $entry)) {
+        $images[] = $entry;
+      }
+    }
+    
+    closedir($handle);
+    return ($images);
+
+  } else {
+    return FALSE;
+  }
+}
+
+
+/* Select a banner image at random */
+function _iac_select_image($img_type) {
+  
+  $hdir      = "files/images/headers/$img_type";
+  $images    = _iac_cover_images($img_type);
+  
+  return ("/$hdir/" . $images[time() % sizeof($images)]);
+}
+
+
+/* Check if user has role/roles */
+function _iac_user_has_role($roles) {
+  return !!_dili_user_has_role($roles);
+};
+
+
+
+#  Alter the contest preregistration form to add the contest and user entity references.
+function iac_form_contest_pre_registration_node_form_alter(&$form, &$form_state, $form_id) {
+
+  global $user;
+
+  // If contest ID is specified, we're creating a new pre-registration record
+  // Else we can get the contest ID from field_contest
+  $cid = (isset($_GET['cid']) ? $_GET['cid'] : $form['#node']->field_contest['und'][0]['target_id']);
+  $contest = node_load($cid);
+
+
+  // Sanity checks: if we can't find the contest then display a message stating such
+  // and bounce the user back to the Contests view.
+  if ($contest == NULL || $contest->type != 'contest') {
+    drupal_set_message("Could not find the contest you tried to pre-register for. Please contact the Webmaster if the problem persists.");
+    drupal_goto('contests');
+    return;
+  }
+
+  # Populate the contest & user entity references
+  $form['field_contest']['und'][0]['target_id']['#default_value'] = "$contest->title ($contest->nid)";
+  $form['field_member']['und'][0]['target_id']['#default_value'] = "$user->name ($user->uid)";
+
+}
+
+
+
+/* Gather contest pre-registration info */
+/* !!! COMMENTED OUT BUT PRESERVED FOR POSTERITY -- IN CASE SOME PAGE REFERENCES THIS FUNCTION
+function _iac_contest_preregistrations($cid) {
+
+  return; // !!!
+
+  $pre_regs = $query->entityCondition('entity_type', 'node')
+    ->entityCondition('bundle', 'contest_pre_registration')
+    ->propertyCondition('status', NODE_PUBLISHED)
+    ->fieldCondition('field_contest', 'target_id', $cid, '=')
+    ->execute();
+
+  return($pre_regs);
+
+}
+!!! */
+
+
+
+// 
+// Send request to IACCDB to create a new contest record, and receive an ID in return
+
+function _iac_gen_new_contest_id($node) {
+
+  // Get the newly-created or newly-updated contest node
+  $contest = node_load($node->nid);
+
+  // If the contest already has an IACCDB ID, do nothing
+  if (_dili_efv($contest->field_iaccdb_id) != NULL) { return; }
+
+  // Get the CD's user record
+  $director = user_load($contest->field_contest_director['und'][0]['target_id']);
+
+  // Build variables for the POST request
+  $url = 'https://iaccdb.iac.org/contests.json';
+  $ba_user = 'contest_calendar';
+  $ba_pwd = 'monkeybananacoconutplaya';
+  $headers = array(
+    'Authorization' => 'Basic ' . base64_encode("$ba_user:$ba_pwd"),
+    'HTTP_ACCEPT' => 'application/json',
+    'ACCEPT' => 'application/json',
+    'CONTENT-TYPE' => 'application/json'
+  );
+
+  $data = array(
+    'name' => $contest->title,
+    'start' => _dili_efv($contest->field_contest_dates),
+    'city' => _dili_efv($contest->field_city),
+    'state' => _dili_efv($contest->field_state),
+    'chapter' => _dili_efv($contest->field_chapter),
+    'director' => $director->name,
+    'region' => _dili_efv($contest->field_region),
+  );
+
+  // Issue the request
+  $result = drupal_http_request(
+    $url,
+    array(
+      'method' => 'POST',
+      'headers' => $headers,
+      'data' => json_encode(array('contest' => $data))
+    )
+  );
+
+  // Complain loudly and quit if the request failed
+  if ($result->code != 200) {
+    _dili_dog('_iac_gen_new_contest_id FAILED!', WATCHDOG_ERROR);
+    _dili_dog($result, WATCHDOG_ERROR);
+    drupal_set_message('Could not set the IACCDB contest ID!', 'error');
+    return;
+  }
+
+  // Extract the newly-assigned contest ID
+  $data = json_decode($result->data);
+  $cid = $data->id;
+
+  $contest->field_iaccdb_id = _dili_sfv($cid);
+  node_save($contest);
+
+}
+
+
+
+/* !!! COMMENTED OUT, BUT PRESERVED FOR POSSIBLE FUTURE USE
+
+// Adapted from: https://goo.gl/vTYrYM
+// Implements Drupal's hook_menu API call for the iac module
+function iac_menu() {
+
+  $items = array(
+
+    'ipn' => array(
+      'title' => t('Paypal IPN Callback'),
+      'description' => t('Paypal IPN Callback'),
+      'type' => MENU_CALLBACK,
+      'page callback' => '_iac_ipn_callback',
+      'access callback' => TRUE,
+    ),
+
+  );
+
+  return $items;
+
+}
+
+!!! End of iac_menu() */
+
+
+
+// Build a form to collect pricing selections
+function _iac_contest_fees($reg_id) {
+
+  // Ensure access to the current user's record and the site's base URL
+  global $user;
+  global $base_url;
+
+  // Results var
+  $rval = '';
+
+  // Fetch the pre-registration record.
+  $pre_reg = node_load($reg_id);
+
+  // Return an error message if nothing was found (shouldn't happen)
+  if (!$pre_reg) {
+    drupal_set_message('Pre-registration not found, or nid argument missing!', 'error');
+    return;
+  }
+
+  // Get the associated Contest node
+  $contest = node_load($pre_reg->field_contest['und'][0]['target_id']);
+
+  // Return an error message if nothing was found (shouldn't happen)
+  if (!$contest) {
+    drupal_set_message('Contest not found!', 'error');
+    return;
+  }
+
+  // Get the associated User record
+  $registrant = user_load($pre_reg->field_member['und'][0]['target_id']);
+
+  // Return an error message if nothing was found (shouldn't happen)
+  if (!$registrant) {
+    drupal_set_message('Registrant not found!', 'error');
+    return;
+  }
+
+  $rval .= "<h2> $contest->title </h2>\n";
+  $rval .= "<h3> For: $registrant->name </h3>\n";
+
+  // Get the PayPal ID
+  $ppaddr = _dili_efv($contest->field_paypal_id);
+
+  // If the contest didn't provide an email address for their PayPal acct, we're done here.
+  if (empty($ppaddr)) {
+    return $rval . '<p> <em>This contest does not accept pre-payments.</em> </p>';
+  } else {
+    $rval .= "<p><strong>Notes:</strong></p>" .
+      "<ul><li><em>Pre-payment is optional, <strong>but!</strong> Nationals competitors must pre-pay in order to secure a practice slot.</em></li>" .
+      "<li><em>Any changes or cancellations must be handled directly with the contest organizers.</em></li></ul>\n";
+  }
+
+
+  // Start building the form
+  $rval .= "<table class='bordered'>";
+
+  # Convenience var
+  $fee_list = $contest->field_contest_fees['und'];
+
+  # Loop counter
+  $i = 0;
+
+  # Iterate over the list of fees
+  foreach ($fee_list as $fee_ptr) {
+
+    # Bump the loop counter
+    $i += 1;
+
+    $rval .= '<tr>';
+
+    # Get the taxonomy term ID for the item (e.g., Entry fee, T-shirt, etc.)
+    $result = db_query(
+      'SELECT field_item_tid FROM field_data_field_item WHERE entity_id = :eid',
+      Array(':eid' => $fee_ptr['value'])
+    );
+
+    # Get the taxonomy tree
+    $hier = taxonomy_get_parents_all($result->fetchObject()->field_item_tid);
+
+    # Build a breadcrumb-style descriptor
+    $taxonomy = Array();
+    while ($term = array_pop($hier)) {
+      array_push($taxonomy, $term->name);
+      $desc = check_markup($term->description, $term->format);
+    }
+
+    $rval .= '<td><strong>' . implode(' > ', $taxonomy) . "</strong>" . $desc . "</td>\n";
+
+    # Get the price
+    $result = db_query(
+      'SELECT field_price_value FROM field_data_field_price WHERE entity_id = :eid',
+      Array(':eid' => $fee_ptr['value'])
+    );
+
+    $price = $result->fetchObject()->field_price_value;
+
+    $rval .= "<td>$" . $price . "</td>\n";
+    $item = implode(' > ', $taxonomy);
+    $rval .= <<<EOTEXT
+<td width="100">
+<form target="paypal" action="https://www.paypal.com/cgi-bin/webscr" method="post">
+
+  <!-- Identify your business so that you can collect the payments. -->
+  <input type="hidden" name="business" value="$ppaddr">
+
+  <!-- Specify a PayPal Shopping Cart Add to Cart button. -->
+  <input type="hidden" name="cmd" value="_cart">
+  <input type="hidden" name="add" value="1">
+
+  <!-- Specify details about the item that buyers will purchase. -->
+  <input type="hidden" name="item_name" value="$item">
+  <input type="hidden" name="amount" value="$price">
+  <input type="hidden" name="currency_code" value="USD">
+
+  <!-- Display the payment button. -->
+  <input type="image" name="submit"
+    src="https://www.paypalobjects.com/en_US/i/btn/btn_cart_LG.gif"
+    alt="Add to Cart">
+  <img alt="" width="1" height="1"
+    src="https://www.paypalobjects.com/en_US/i/scr/pixel.gif">
+</form>
+</td>
+EOTEXT;
+    $rval .= "</td>";
+    $rval .= "</tr>\n";
+
+  }
+
+  $rval .= "</table>\n";
+  $rval .= "</form>\n";
+  
+  // Return the built-up string
+  return $rval;
+
+}
+
+
+
+// Adapted from: https://developer.paypal.com/docs/classic/ipn/ht_ipn/
+// Phase 1: read POST data
+/* !!! COMMENTED OUT, BUT PRESERVED FOR POSSIBLE FUTURE USE
+
+function _iac_ipn_callback() {
+
+  // Per the IPN protocol, return HTTP code 200
+  header("HTTP/1.1 200 OK");
+
+  // POST IPN data back to PayPal to validate
+  // Reading POSTed data directly from $_POST causes serialization issues with array data in the POST.
+  // Instead, read raw POST data from the input stream.
+  $raw_post_data = file_get_contents('php://input');
+  $raw_post_array = explode('&', $raw_post_data);
+  $myPost = array();
+
+  foreach ($raw_post_array as $keyval) {
+    $keyval = explode ('=', $keyval);
+    if (count($keyval) == 2) {
+      $myPost[$keyval[0]] = urldecode($keyval[1]);
+    }
+  }
+
+  // Append 'cmd=_notify-validate'
+  $req = 'cmd=_notify-validate';
+
+  // See if the magic quotes function is available
+  if (function_exists('get_magic_quotes_gpc')) {
+    $get_magic_quotes_exists = true;
+  }
+
+  // Add each key-value pair to the query string
+  foreach ($myPost as $key => $value) {
+
+    if ($get_magic_quotes_exists == true && get_magic_quotes_gpc() == 1) {
+      $value = urlencode(stripslashes($value));
+    } else {
+      $value = urlencode($value);
+    }
+
+    $req .= "&$key=$value";
+
+  }
+
+
+  // (Re-)build the message
+  $ch = curl_init('https://ipnpb.paypal.com/cgi-bin/webscr');
+  curl_setopt($ch, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
+  curl_setopt($ch, CURLOPT_POST, 1);
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER,1);
+  curl_setopt($ch, CURLOPT_POSTFIELDS, $req);
+  curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 1);
+  curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+  curl_setopt($ch, CURLOPT_FORBID_REUSE, 1);
+  curl_setopt($ch, CURLOPT_HTTPHEADER, array('Connection: Close'));
+
+  // In wamp-like environments that do not come bundled with root authority certificates,
+  // please download 'cacert.pem' from "http://curl.haxx.se/docs/caextract.html" and set
+  // the directory path of the certificate as shown below:
+  curl_setopt($ch, CURLOPT_CAINFO, dirname(__FILE__) . '/cacert.pem');
+
+  // Do it, and save the result
+  $res = curl_exec($ch);
+
+  // Close the stream
+  curl_close($ch);
+
+  // Was there an error?
+  if (!$res) {
+    _dili_dog('Got curl error ' . curl_error($ch) . ' when processing IPN data', WATCHDOG_ERROR);
+    exit;
+  }
+
+  // inspect IPN validation result and act accordingly
+  if (strcmp ($res, "VERIFIED") == 0) {
+
+    // Convenience vars
+    $payment_status = $_POST['payment_status'];
+    $txn_id = $_POST['txn_id'];
+    $amt_paid = $_POST['mc_gross'];
+    $custom = $_POST['custom'];
+
+    // New query object
+    $query = new EntityFieldQuery();
+    $query->entityCondition('bundle', 'payment');
+    $query->fieldCondition('field_transaction_id', 'value', $txn_id, '=');
+    $result = $query->execute();
+
+    // If not found, that's good -- it means this isn't a duplicate notification
+    if (count($result) == 0) {
+
+      // Retrieve the node whose ID is in the 'custom' field
+      $pymt = node_load($custom);
+      $pymt->status = 1;
+      $pymt->field_transaction_id = _dili_sfv($txn_id);
+      node_save($pymt);
+      _dili_dog("Marked payment $pymt->nid as received.");
+
+    } else {
+      // Previous result found -- just log the fact
+      _dili_dog("Received duplicate PayPal confirmation: $txnid");
+    }
+
+  } else {
+    // Received a response other than 'VERIFIED'
+    _dili_dog('Transaction invalid, response=$res', WATCHDOG_ERROR);
+  }
+
+
+  // No need to render a page or return an HTTP status
+  die();
+
+}
+
+!!! end of _iac_ipn_callback() */
+
+
+
+
+# Produce HTML for a link to pre-register at a contest, or
+# edit an existing registration, or 
+# do nothing if the registration deadline has passed.
+function _iac_pre_reg_link($cid) {
+
+  global $user;
+
+  # Get the entire contest node
+  $contest = node_load($cid);
+
+  # Three potential pre-registration deadlines: 
+  # - The explicit date in field_registration_deadline. If that's blank...
+  # - Use the day before the practice_registration_date. If that's blank...
+  # - Use the day before the contest starts.
+
+  $deadline = _dili_efv($contest->field_preregistration_deadline);
+
+  if ($deadline != NULL) {
+
+    # Convert to timestamp
+    $deadline = strtotime($deadline); 
+
+  } else{
+
+    $deadline = _dili_efv($contest->field_practice_registration_date);
+
+    if ($deadline != NULL) {
+
+      # Subtract one day from practice/registration date
+      $deadline = strtotime($deadline) - 24*3600;
+
+    } else {
+
+      # Subtract one day from contest start date
+      $deadline = strtotime(_dili_efv($contest->field_contest_dates)) - 24*3600;
+
+    }
+
+  }
+
+  # If the deadline is still in the future...
+  if (time() < $deadline) {
+
+    // See if the user is already has a pre-registration node for this contest
+    $result = _iac_user_contest_reg_query($user->uid, $contest->nid);
+
+    // Did we find an existing pre-registration record?
+    if (empty($result)) {
+
+      // No existing record
+
+      # Pre-registration is only offered to current, logged-in members
+      if (_dili_user_has_role('current member')) {
+        return "<a class='button' href='/node/add/contest-pre-registration?cid=$contest->nid'>Register</a>\n";
+      }
+
+      # Else not a current member; are they even logged in?
+      if (_dili_user_has_role('anonymous user')) {
+        return "<a class='button' title='Login Required' " .
+          "href='/node/add/contest-pre-registration?cid=$contest->nid'>Register</a>\n";
+      }
+
+      # Else logged in but not current
+      return "<a href='/join-renew' title='Click to renew'>Current members only</a>";
+
+    } else {
+      // User has already registered. So get the pre-registration node...
+      $pre_reg_nid = array_pop($result['node'])->nid;
+
+      // ... and construct a path to edit the pre-reg node
+      return "<a class='button' href='/node/$pre_reg_nid/edit'>Edit Reg</a>\n";
+    }
+
+  } elseif (!_dili_user_has_role('anonymous user')) {
+    return 'Reg. Closed';
+  }
+
+
+  return '';
+
+}
+
+
+
+// Return contest node author email + CD email (or just one if they're the same person)
+function _iac_contest_prereg_emails($prereg) {
+
+  // Get the related contest node
+  $contest = node_load(_dili_efv($prereg->field_contest, 'target_id'));
+
+  // Get the User entity that created the contest node
+  $author = user_load($contest->uid);
+
+  // Save the author's email address
+  $rval = [ $author->mail ];
+
+  // Get the User entity of the Contest Director
+  $cd = user_load(_dili_efv($contest->field_contest_director, 'target_id'));
+
+  // Get the CD's email address
+  $cd_email = $cd->mail;
+
+  // If the two email addresses are different, add the CD's email addr
+  if ($cd_email != $rval[0]) { $rval[] = $cd_email; }
+
+  // Done
+  return($rval);
+  
+}
+
+
+
+// Test whether the current user 'owns' a contest node
+function _iac_owns_contest($cid) {
+
+  global $user;
+
+  $contest = node_load($cid);
+
+  return (
+    $user->uid == $contest->uid ||
+    $user->uid == _dili_efv($contest->field_contest_director, 'target_id') ||
+    _iac_user_has_role(['administrator', 'editor'])
+  );
+
+}
+
+
+
+/* !!! COMMENTED OUT, BUT PRESERVED FOR POSSIBLE FUTURE USE 
+
+// Build page with PayPal button for contest payments
+function _iac_pay_button($reg_id, $post) {
+
+  global $base_url;
+
+  // Var to hold the output string
+  $rval = '';
+
+  // Variable to store the running total charges
+  $total = 0;
+
+  // List of selected items to be paid for
+  $items = Array();
+
+  // Get the PayPal email address from the contest
+  $reg = node_load($reg_id);
+  $contest = node_load($reg->field_contest['und'][0]['target_id']);
+  $ppaddr = _dili_efv($contest->field_paypal_id);
+
+  // Loop through $post looking for items with qty > 0
+  while (!empty($post)) {
+
+    // Items come in triplets: Qty, Desc, Price
+    $qty = array_shift($post);
+    $desc = array_shift($post);
+    $price = array_shift($post);
+
+    // Skip items whose quantity is zero
+    if ($qty == 0) { continue; }
+
+    $items[] = Array('qty' => $qty, 'desc' => $desc, 'price' => $price);
+    $total += $qty * $price;
+
+  }
+  
+  # Nothing selected
+  if ($total == 0) {
+    return "<p>No items selected, nothing owed</p>\n";
+  }
+
+  // Build a Payment node, to be completed and published after receiving IPN
+  $pymt = new stdClass();
+  $pymt->title = "Payment for $reg_id";
+  $pymt->type = "payment";
+  $pymt->language = LANGUAGE_NONE; 
+  $pymt->uid = $reg->uid; 
+  $pymt->status = 0; # Unpublished
+  $pymt->promote = 0;  # Not promoted to front page
+  $pymt->comment = 1; # Read-only
+  $pymt->field_price = _dili_sfv($total);
+  $pymt->field_details = _dili_sfv(serialize($items));
+  $pymt->field_references = _dili_sfv($reg_id, 'target_id');
+  node_save($pymt);
+
+  $rval .= "<table><tr><th>Qty</th><th>Item</th><th>Price</th><th>Subtotal</th></tr>\n";
+  foreach($items as $item) {
+    $qty = $item['qty'];
+    $desc = $item['desc'];
+    $price = $item['price'];
+    $rval .= "<tr><td>$qty</td><td>$desc</td><td>$$price</td><td>$" . $qty * $price . "</td></tr>\n";
+  }
+
+  $rval .= "<tr><td></td><td></td><td><strong>TOTAL</strong></td><td>$" . $total . "</td></tr>\n";
+  $rval .= "</table>\n";
+
+  // Build PayPal button for contest pre-registration payment
+  $rval .= "<br/>
+    <form name='_xclick' action='https://www.paypal.com/ae/cgi-bin/webscr' method='post'>
+    <a href='/contest-fees?reg_id=$reg_id'>Make Changes</a> or<br/>
+    <input type='hidden' name='cmd' value='_xclick'>
+    <input type='hidden' name='business' value='$ppaddr'>
+    <input type='hidden' name='currency_code' value='USD'>
+    <input type='hidden' name='item_name' value='IAC Contest Fees'>
+    <input type='image' src='https://www.paypalobjects.com/webstatic/en_US/i/btn/png/gold-pill-paypalcheckout-44px.png'
+      border='0' name='submit' alt='Make payments with PayPal - it\'s fast, free and secure!'>
+    <input type='hidden' name='amount' value='$total'>
+    <input type='hidden' name='custom' value='$pymt->nid'>
+    <input type='hidden' name='return' value='$base_url/thank-you-for-your-payment'>
+    <input type='hidden' name='cancel_return' value='$base_url/cancel-payment'>
+    </form>\n\n\n";
+
+  return $rval;
+
+}
+
+!!! End of _iac_pay_button() */
+
+
+
+
+/* Format the list of items associated with the Payment field of a node (identified via ref_id) */
+/* !!! COMMENTED OUT, BUT PRESERVED FOR POSSIBLE FUTURE USE 
+function _iac_itemize($ref_id, $brief = FALSE) {
+
+  # Var to hold the return string
+  $rval = '';
+
+  $query = new EntityFieldQuery();
+  $result = $query->entityCondition('entity_type', 'node')
+    ->entityCondition('bundle', 'payment')
+#    ->propertyCondition('status', NODE_PUBLISHED)
+    ->fieldCondition('field_references', 'target_id', $ref_id, '=')
+    ->execute();
+
+  if (empty($result)) {
+
+    return '--';
+
+  } else {
+
+    # Grab the whole Payment node
+    $pymt = node_load(array_shift($result['node'])->nid);
+
+    # Print the total
+    print "<strong>Total:</strong> $" . _dili_efv($pymt->field_price);
+
+    if (!$brief) {
+
+      print "<br/>\n";
+
+      # Decode the details field
+      $items = unserialize(_dili_efv($pymt->field_details));
+
+      foreach ($items as $item) {
+        $qty = $item['qty'];
+        $desc = $item['desc'];
+        $price = $item['price'];
+        print "Qty $qty of $desc @ $price = $" . $qty * $price . "<br/>\n";
+      }
+
+    }
+
+  }
+
+}
+
+!!! End of _iac_itemize() */
+
+
+
+// Utility function for the Vendor Info view.
+// Determines whether a given Vendor Info node's Campaign field
+// matches the current Drupal page's path.
+function _iac_campaign_matches_path($nid, $current_path) {
+  
+  $node = node_load($nid);
+  $campaigns = _dili_efv($node->field_campaign);
+  
+  // _dili_efv may return a scalar or an array. Force the return value to be an array.
+  if (!is_array($campaigns)) { $campaigns = Array($campaigns); }
+
+  foreach($campaigns as $campaign) {
+    if ($current_path == $campaign) { return TRUE; }
+  }
+
+  // Special case: nodes whose Campaign value is "all-other-pages" should
+  // display if the loop above hasn't matched any other page.
+  if (array_search('all-other-pages', $campaigns)) { return TRUE; }
+
+  // No match found
+  return FALSE;
+
+}
+
+
+// Utility function to search for an existing pre-registration for
+// a given user at a given contest
+function _iac_user_contest_reg_query($uid, $cid) {
+
+    $query = new EntityFieldQuery();
+    $query->entityCondition('entity_type', 'node')
+      ->entityCondition('bundle', 'contest_pre_registration')
+      ->propertyCondition('status', NODE_PUBLISHED)
+      ->fieldCondition('field_member', 'target_id', $uid, '=')
+      ->fieldCondition('field_contest', 'target_id', $cid, '=') ;
+    return($query->execute());
+
+}
+
+
+
+// Utility function to log the SQL for any EntityFieldQuery.
+// To use, add the following code to the query:
+//     ->addTag('debug_dump')
+function iac_query_alter($query) {
+
+  if ($query->hasTag('debug_dump')) {
+    _dili_dog('Query dump: ' . print_r($query, TRUE));
+  }
+
+}
