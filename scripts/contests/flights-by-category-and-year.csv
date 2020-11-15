@@ -1,0 +1,79 @@
+category,yr,flights
+advanced,2006,462
+advanced,2007,429
+advanced,2008,466
+advanced,2009,501
+advanced,2010,526
+advanced,2011,510
+advanced,2012,625
+advanced,2013,629
+advanced,2014,493
+advanced,2015,572
+advanced,2016,526
+advanced,2017,449
+advanced,2018,346
+four minute,2006,17
+four minute,2007,7
+four minute,2008,15
+four minute,2009,14
+four minute,2010,23
+four minute,2011,17
+four minute,2012,19
+four minute,2013,8
+four minute,2014,12
+four minute,2015,23
+four minute,2016,21
+four minute,2017,22
+four minute,2018,14
+intermediate,2006,663
+intermediate,2007,635
+intermediate,2008,643
+intermediate,2009,687
+intermediate,2010,740
+intermediate,2011,663
+intermediate,2012,772
+intermediate,2013,602
+intermediate,2014,628
+intermediate,2015,605
+intermediate,2016,710
+intermediate,2017,700
+intermediate,2018,588
+primary,2006,216
+primary,2007,292
+primary,2008,350
+primary,2009,261
+primary,2010,391
+primary,2011,291
+primary,2012,311
+primary,2013,285
+primary,2014,345
+primary,2015,336
+primary,2016,353
+primary,2017,351
+primary,2018,242
+sportsman,2006,919
+sportsman,2007,826
+sportsman,2008,939
+sportsman,2009,786
+sportsman,2010,968
+sportsman,2011,926
+sportsman,2012,770
+sportsman,2013,734
+sportsman,2014,868
+sportsman,2015,943
+sportsman,2016,917
+sportsman,2017,875
+sportsman,2018,689
+unlimited,2006,264
+unlimited,2007,226
+unlimited,2008,270
+unlimited,2009,213
+unlimited,2010,294
+unlimited,2011,213
+unlimited,2012,245
+unlimited,2013,278
+unlimited,2014,201
+unlimited,2015,158
+unlimited,2016,172
+unlimited,2017,151
+unlimited,2018,159
