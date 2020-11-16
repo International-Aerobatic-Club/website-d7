@@ -1,5 +1,9 @@
 <?php
 
+/* !!! Comments marked with three exclamation points implement the 2020 Board decisions
+ *     re: judge currency amid the pandemic
+*/
+
 # DJM, 2017-03-09
 
 # Calculate judge currency and update user records as appropriate,
@@ -295,9 +299,12 @@ foreach($judges as $jid=>$judge) {
 
   // Anyone who has judged 25 total flights, or 30 flights of which 5 are ADV or UNL,
   // or who has attended a judge's school in the past two years is current judge of some sort.
-  if ($judge['total'] >= 25 ||
-    ($judge['total'] >= 20 && $judge['adv_unl_free'] >= 5) ||
-    $judge['school_year'] >= $prev_year2) {
+
+  // !!! IAC P&P 214 section 6.1 sub-paragraph b) i (required flights) be suspended* for 2021 Judge currency (requirement for number of flights Chief-ed or graded
+  if ( /* !!! $judge['total'] >= 25 ||
+    ($judge['total'] >= 20 && $judge['adv_unl_free'] >= 5) || */
+  // !!! IAC P&P 214 section 6.1 sub-paragraph b) ii requirement for Regional Judges to attend a Judges School within 2 years be extended to 3 years for 2021 Judge Currency
+    $judge['school_year'] >= /* !!! $prev_year2 */ $prev_year3) {
 
       // Increment the count
       $cur_count += 1;
