@@ -91,7 +91,7 @@ function iac_users_who_passed_rc_exam($judges) {
     2018 => '2018 Judges Revalidation & Currency Exam',
     2019 => '2019 Judges Revalidation & Currency Exam',
     2020 => '2020 Judges Revalidation & Currency Exam',
-    2021 => '2020 JUDGES REVALIDATION & CURRENCY EXAM',
+    2021 => '2021 JUDGES REVALIDATION & CURRENCY EXAM',
   );
 
   $current_year = intval(date('Y'));
