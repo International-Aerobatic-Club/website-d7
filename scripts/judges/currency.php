@@ -1,10 +1,6 @@
 <?php
 
-/* !!! Comments marked with three exclamation points implement the 2020 Board decisions
- *     re: judge currency amid the pandemic
-*/
-
-# DJM, 2017-03-09
+# DJM, 2021-02-05
 
 # Calculate judge currency and update user records as appropriate,
 # in accordance with the 2017 IAC Rule Book, Section 2.6.3
@@ -35,20 +31,6 @@ $prev_year3 = $current_year - 3;
 $prev_year3_ts = strtotime("$prev_year3-01-01");
 
 
-# Titles of each year's R&C exam. Will need to update this annually.
-# TODO: Come up with a more clever way of finding them. Using tags, perhaps?
-$rc_exams = Array(
-  2015 => '2015 Judges Revalidation & Currency Exam',
-  2016 => '2016 Judge Revalidation & Currency Exam',
-  2017 => '2017 JUDGE REVALIDATION & CURRENCY EXAM',
-  2018 => '2018 Judges Revalidation & Currency Exam',
-  2019 => '2019 Judges Revalidation & Currency Exam',
-  2020 => '2020 Judges Revalidation & Currency Exam',
-);
-
-
-
-
 # Assoc. array of judging experiences, one element per user
 $judges = Array();
 
@@ -59,7 +41,7 @@ $judges = Array();
 ######################### Get the list of non-current judges
 
 # What about current judges, you ask? Once current, a judge stays that way for 
-# the entire year. Therefore there is no need to re-evaluate their qualifications
+# the entire year. Therefore there is no need to re-evaluate their qualifications.
 
 $ncj_query = new EntityFieldQuery();
 $ncj_results = $ncj_query->entityCondition('entity_type', 'profile2', '=')
@@ -113,7 +95,6 @@ foreach($uids as $uid) {
   $judges[$uid]['school_year'] = 0;
   $judges[$uid]['judged_nats'] = FALSE;
 }
-
 
 
 
@@ -186,50 +167,11 @@ foreach($judging_experiences as $je) {
 
 ##################### See who passed the R&C
 
-# Locate this year's R&C Exam node
-if (empty($rc_exams[$current_year])) {
-  print "No title available for this year's R&C exam page! Update ~webmaster/scripts/judges/currency.php\n";
-  return;
+$rc_results = iac_users_who_passed_rc_exam($uids);
+
+foreach($rc_results as $jid=>$result) {
+  if ($result == 1) { $judges[$jid]['rc_pass'] = TRUE; }
 }
-
-
-$exam_query = new EntityFieldQuery();
-
-$exam_results = $exam_query->entityCondition('entity_type', 'node')
-  ->propertyCondition('type', 'quiz')
-  ->propertyCondition('title', $rc_exams[$current_year])
-  ->propertyCondition('status', NODE_PUBLISHED)
-  ->propertyCondition('status', 1)
-  ->execute();
-
-if (empty($exam_results['node'])) {
-  print "Can't locate Quiz node: $rc_exams[$current_year].\n";
-  return;
-}
-
-# Load the current R&C exam node
-$rc_exam = node_load(array_shift(array_keys($exam_results['node'])));
-
-# Collect all vid values for this R&C exam, because User A may pass the exam, then
-# the exam changes creating a new vid, then User B passes the exam. And the Quiz
-# module's quiz_is_passed method only takes a scalar vid parameter. (eye roll)
-
-$rc_vids = Array();
-foreach(node_revision_list($rc_exam) as $rev) { $rc_vids[] = $rev->vid; }
-
-
-
-
-# See if each judge has passed this year's R&C exam
-foreach($judges as $jid=>$judge) {
-  foreach ($rc_vids as $vid) {
-    if (quiz_is_passed($jid, $rc_exam->nid, $vid)) {
-      $judges[$jid]['rc_pass'] = TRUE;
-      break;
-    }
-  }
-}
-
 
 
 
@@ -300,11 +242,9 @@ foreach($judges as $jid=>$judge) {
   // Anyone who has judged 25 total flights, or 30 flights of which 5 are ADV or UNL,
   // or who has attended a judge's school in the past two years is current judge of some sort.
 
-  // !!! IAC P&P 214 section 6.1 sub-paragraph b) i (required flights) be suspended* for 2021 Judge currency (requirement for number of flights Chief-ed or graded
-  if ( /* !!! $judge['total'] >= 25 ||
-    ($judge['total'] >= 20 && $judge['adv_unl_free'] >= 5) || */
-  // !!! IAC P&P 214 section 6.1 sub-paragraph b) ii requirement for Regional Judges to attend a Judges School within 2 years be extended to 3 years for 2021 Judge Currency
-    $judge['school_year'] >= /* !!! $prev_year2 */ $prev_year3) {
+  if ($judge['total'] >= 25 ||
+    ($judge['total'] >= 20 && $judge['adv_unl_free'] >= 5) ||
+    $judge['school_year'] >= $prev_year2) {
 
       // Increment the count
       $cur_count += 1;
