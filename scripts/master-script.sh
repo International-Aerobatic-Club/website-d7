@@ -1,19 +1,18 @@
 echo "************ Initialize Ruby environment ***********"
-source ~webmaster/iaccdb/rails_env.sh
+source ~webmaster/rails_env.sh
+
+# Set environment variable for the Drupal home directory
+export D7=/usr/local/share/drupal7
 
 echo "************ Update Members ************"
 cd ~/scripts/members; bash ./update-members.sh
 
 echo; echo; echo "************ Delayed Job Restart ************"
-cd ~/iaccdb; bash -l ./shared/restart_delayed_job.sh
+cd ~www-data/iaccdb; ./script/delayed_job
 sleep 30
 
 echo; echo; echo "************ Update Judges ************"
-cd ~webmaster/scripts/judges; bash ./daily-update.sh
+cd ~/scripts/judges; bash ./daily-update.sh
 
-# echo; echo; echo "************ Judges School Nag ************"
-# drush -r /usr/local/share/drupal7 -l www.iac.org scr /home/webmaster/scripts/judges-schools/nag-student-list.php
-
-echo; echo; echo "************ Hacker Blocker ************"
-drush -r /usr/local/share/drupal7 -l www.iac.org scr /home/webmaster/scripts/hacker-blocker/hacker-logins.php
-
+echo; echo; echo "************ Judges School Nag ************"
+/usr/local/bin/drush7 -r /usr/local/share/drupal7 -l www.iac.org scr /home/webmaster/scripts/judges-schools/nag-student-list.php

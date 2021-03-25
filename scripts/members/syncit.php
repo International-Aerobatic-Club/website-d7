@@ -15,10 +15,10 @@
 
 // Usage: drush -r $D7 -l www.iac.org scr syncit.php [--readonly] < membership-list.csv
 
-define(IGNORE_EMAIL, '@nomail.iac.org');
-define(NEW_USER_LIMIT, 25);
+define('IGNORE_EMAIL', '@nomail.iac.org');
+define('NEW_USER_LIMIT', 25);
+define('IAC_CURRENT_MEMBER_ROLE', 'current member');
 
-define(IAC_CURRENT_MEMBER_ROLE, 'current member');
 
 if (end($_SERVER['argv']) == "--readonly") {
   $readonly = true;
@@ -323,7 +323,7 @@ foreach ($csv as $row) {
       'mail' => $m, 'status' => 1, 'init' => $m
     );            
 
-    $newUser[roles] = array(
+    $newUser['roles'] = array(
       DRUPAL_AUTHENTICATED_RID => 'authenticated user',
       $current => IAC_CURRENT_MEMBER_ROLE,
     );
