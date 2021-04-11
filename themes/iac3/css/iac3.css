@@ -242,6 +242,9 @@ table.contest-results th.r, table.contest-results td.r { text-align: right; }
 .text-align-left   { text-align: left ; }
 .text-align-center { text-align: center; }
 .text-align-right  { text-align: right; }
+.vertical-align-top   { vertical-align: top ; }
+.vertical-align-middle { vertical-align: middle; }
+.vertical-align-bottom  { vertical-align: bottom; }
 
 
 /* Style a hyperlink as a button */
