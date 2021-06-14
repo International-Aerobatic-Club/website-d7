@@ -129,6 +129,11 @@ div.view-id-magazines td { text-align: center; }
 section.seeking-authors { margin-bottom: 8px; padding-bottom: 8px; }
 
 
+/********** Practice Slots View **********/
+div.view-my-practice-slots form { margin-bottom: 0px; }
+table.auto-width { width: auto; }
+
+
 /* Tighten up the login block */
 section#block-user-login div.block-content { padding-top: 0px; padding-bottom: 0px; }
 section#block-user-login div.form-item { margin: 5px 0px 5px; }
