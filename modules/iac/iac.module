@@ -91,7 +91,7 @@ function iac_users_who_passed_rc_exam($judges) {
     2018 => '2018 Judges Revalidation & Currency Exam',
     2019 => '2019 Judges Revalidation & Currency Exam',
     2020 => '2020 Judges Revalidation & Currency Exam',
-    2021 => '2021 JUDGES REVALIDATION & CURRENCY EXAM',
+    2021 => '2021 Judges Revalidation & Currency Exam',
   );
 
   $current_year = intval(date('Y'));
@@ -904,5 +904,115 @@ function iac_query_alter($query) {
   if ($query->hasTag('debug_dump')) {
     _dili_dog('Query dump: ' . print_r($query, TRUE));
   }
+
+}
+
+
+
+
+/////////////////// PRACTICE SLOT FUNCTIONS ///////////////////
+
+// Generate practice slots upon creation of a contest.
+
+function _iac_gen_practice_slots($contest) {
+
+  global $user;
+
+  // Load the duration of each practice slot, in minutes
+  $duration = _dili_efv($contest->field_practice_slot_duration);
+
+  // Do nothing unless the practice slot duration is defined
+  if ($duration == NULL) { return; }
+
+  // See if there are any practice_slot records for this contest
+  // !!! Replace with Drupal-style query
+  $result = db_query(
+    "SELECT * FROM field_data_field_contest " .
+    "  WHERE bundle='practice_slot' " .
+    "    AND field_contest_target_id = $contest->nid " .
+    "  LIMIT 1;"
+  )->fetchField();
+
+  // Bail out if the query found a practice slot record
+  if ($result != FALSE) { return; }
+
+
+  // Get the array of practice periods (0-n in length)
+  $periods = $contest->field_practice_periods['und'];
+
+  // Loop counter
+  $i = 0;
+
+  // Iterate over the periods
+  foreach($periods as $period) {
+
+    $start = DateTime::createFromFormat('Y-m-d H:i:s', $period['value']);
+    $end = DateTime::createFromFormat('Y-m-d H:i:s', $period['value2']);
+
+    $slot_time = $start;
+
+    while ($slot_time < $end) {
+
+      $i += 1;
+
+      // Build the Practice Slot node
+      // Adapted from https://knackforge.com/blog/vishnu/programmatically-create-node-drupal-7
+      $slot = new stdClass();
+
+      // Boilerplate
+      $slot->type = 'practice_slot';
+      $slot->language = LANGUAGE_NONE;
+      node_object_prepare($slot);
+      $slot->uid = 0;      // Anonymous
+      $slot->status = 1;   // (1 or 0): published or unpublished
+      $slot->promote = 0;  // (1 or 0): promoted to front page or not
+      $slot->sticky = 0;   // (1 or 0): sticky at top of lists or not
+      $slot->comment = 0;  // 2 = comments open, 1 = comments closed, 0 = comments hidden
+
+      // Fill in the fields
+      $slot->field_contest = _dili_sfv($contest->nid, 'target_id');
+      $slot->field_start_time['und'][0] = array(
+        'value' => format_date($slot_time->getTimestamp(), 'custom', 'Y-m-d H:i:s', 'UTC'),
+        'timezone' => 'UTC',
+        'timezone_db' => 'UTC',
+      );
+
+      // Generate the title: contest nid + UID (which starts as 0 / Anonymous)
+      $slot->title = 'contest-' . $contest->nid . '-slot-' . sprintf('%03d', $i);
+
+      // Save it
+      node_save($slot);
+
+      // Move to the next slot time
+      $slot_time->add(DateInterval::createFromDateString($duration . " minutes"));
+
+    } // while
+
+  } // foreach $periods
+
+}
+
+
+function _iac_relinquish_practice_slot($nid) {
+
+  global $user;
+
+  // Make sure we got the nid parameter
+  if ($nid == NULL) { return '<em>Node ID not provided!</em>'; }
+
+  // Load the practice slot record
+  $slot = node_load($nid);
+
+  // Make sure it actually is a practice slot
+  if ($slot->type != 'practice_slot') { return '<em>Wrong node type!</em>'; }
+
+  // Make sure the slot is owned by either Anonymous or the current user
+  if ($user->uid > 0 && $slot->uid != $user->uid) { return '<em>This slot does not belong to you!</em>'; }
+
+  $slot->uid = 0;
+  node_save($slot);
+
+
+  return '<strong>You have relinquished the practice slot</strong>';
 
 }
