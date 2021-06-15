@@ -947,8 +947,8 @@ function _iac_gen_practice_slots($contest) {
   // Iterate over the periods
   foreach($periods as $period) {
 
-    $start = DateTime::createFromFormat('Y-m-d H:i:s', $period['value']);
-    $end = DateTime::createFromFormat('Y-m-d H:i:s', $period['value2']);
+    $start = DateTime::createFromFormat('Y-m-d H:i:s T', $period['value'] . ' UTC');
+    $end = DateTime::createFromFormat('Y-m-d H:i:s T', $period['value2'] . ' UTC');
 
     $slot_time = $start;
 
