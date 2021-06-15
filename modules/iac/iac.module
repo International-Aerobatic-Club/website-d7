@@ -1016,3 +1016,62 @@ function _iac_relinquish_practice_slot($nid) {
   return '<strong>You have relinquished the practice slot</strong>';
 
 }
+
+
+
+// Setup code for the PHP Views filter
+function _iac_practice_slot_filter_setup() {
+
+  // Get the node IDs of contests that start on or after today
+  $midnight = date('Y-m-d H:i:s', strtotime('today midnight'));
+
+  $query = new EntityFieldQuery();
+
+  $results = $query->entityCondition('entity_type', 'node')
+    ->entityCondition('bundle', 'contest')
+    ->fieldCondition('field_contest_dates', 'value', $midnight, '>')
+    ->execute();
+
+  $future_cids = array_keys($results['node']);
+
+
+  // Build a list of Contest Pre-Registration node IDs that belong to both the current user and future contests.
+  global $user;
+
+  $query = new EntityFieldQuery();
+
+  $results = $query->entityCondition('entity_type', 'node')
+    ->entityCondition('bundle', 'contest_pre_registration')
+    ->fieldCondition('field_contest', 'target_id', $future_cids, 'IN')
+    ->fieldCondition('field_member', 'target_id', $user->uid, '=')
+    ->execute();
+
+  // Array of contest IDs for which the user has pre-registered
+  $pre_reg_contests = array();
+
+  foreach (array_keys($results['node']) as $prid) {
+    $pre_reg = node_load($prid);
+    $pre_reg_contests[] = _dili_efv($pre_reg->field_contest, 'target_id');
+  }
+
+  return($pre_reg_contests);
+
+}
+
+
+
+
+// Execute the Views PHP filter
+function _iac_practice_slot_filter_execute($slot_id, $pre_reg_contests) {
+
+// Load the entire node b/c Views PHP only gives us the nid
+$pslot = node_load($slot_id);
+
+// Extract the contest ID value
+$contest_id = _dili_efv($pslot->field_contest, 'target_id');
+
+// Return FALSE (i.e., do *not* filter out this row) if the practice slot's contest ID
+// matches a contest for which the user has pre-registered
+return !array_search($contest_id, $pre_reg_contests);
+
+}
