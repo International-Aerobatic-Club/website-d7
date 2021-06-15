@@ -1136,7 +1136,7 @@ function _iac_practice_slot_action_button($slot, $contests_with_reservations) {
   // If the slot is owned by the "Anonymous" user, it's available; generate a "Select" button
   if ($slot->uid == 0) {
     return "<form action='/select-practice-slot?nid=$slot->nid' method='post'>\n" .
-      "<button type='submit' onclick='alert(\"Are you sure?\");'>Select</button>\n" .
+      "<button type='submit'>Select</button>\n" .
       "</form>\n";
   } else {
     // No button
