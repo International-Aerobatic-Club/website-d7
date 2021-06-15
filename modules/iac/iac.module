@@ -1060,18 +1060,87 @@ function _iac_practice_slot_filter_setup() {
 
 
 
-
 // Execute the Views PHP filter
 function _iac_practice_slot_filter_execute($slot_id, $pre_reg_contests) {
 
-// Load the entire node b/c Views PHP only gives us the nid
-$pslot = node_load($slot_id);
+  // Load the entire node b/c Views PHP only gives us the nid
+  $pslot = node_load($slot_id);
 
-// Extract the contest ID value
-$contest_id = _dili_efv($pslot->field_contest, 'target_id');
+  // Extract the contest ID value
+  $contest_id = _dili_efv($pslot->field_contest, 'target_id');
 
-// Return FALSE (i.e., do *not* filter out this row) if the practice slot's contest ID
-// matches a contest for which the user has pre-registered
-return !array_search($contest_id, $pre_reg_contests);
+  // Return FALSE (i.e., do *not* filter out this row) if the practice slot's contest ID
+  // matches a contest for which the user has pre-registered
+  return !array_search($contest_id, $pre_reg_contests);
+
+}
+
+
+
+// Return a list of contests for which the user has reserved a practice slot.
+// Used by the "practice-slots" view to set action buttons.
+function _iac_practice_slot_by_contest() {
+
+  global $user;
+
+  // Holds the list of contests for which the user has a practice slot
+  $contests_with_slots = array();
+
+  // Get the list of future contests for which the user has registered
+  $_pre_reg_contests = _iac_practice_slot_filter_setup();
+
+  foreach($_pre_reg_contests as $cid) {
+
+    $query = new EntityFieldQuery();
+
+    $results = $query->entityCondition('entity_type', 'node')
+      ->entityCondition('bundle', 'practice_slot')
+      ->fieldCondition('field_contest', 'target_id', $cid, '=')
+      ->propertyCondition('uid', $user->uid)
+      ->execute();
+
+    if (isset($results['node'])) {
+      $contests_with_slots[] = $cid;
+    }
+
+  }
+
+  return $contests_with_slots;
+
+}
+
+
+
+// Generate HTML appropriate for a given practice slot
+function _iac_practice_slot_action_button($slot, $contests_with_reservations) {
+
+  global $user;
+
+  // If the user already has a reservation for this contest...
+  if (array_search(_dili_efv($slot->field_contest, 'target_id'), $contests_with_reservations) !== FALSE) {
+
+    // And if this is the reserved slot, generate a "Relinquish" button
+    if ($slot->uid == $user->uid) {
+      return "<form action='/relinquish-practice-slot?nid=$slot->nid' method='post'>\n" .
+        "<button type='submit' onclick='alert(\"Are you sure?\");' title='Relinquish this practice slot'>Relinquish</button>\n" .
+        "</form>\n";
+    } else {
+      // No button
+      return "";
+    }
+
+  }
+
+  // Else...
+
+  // If the slot is owned by the "Anonymous" user, it's available; generate a "Select" button
+  if ($slot->uid == 0) {
+    return "<form action='/select-practice-slot?nid=$slot->nid' method='post'>\n" .
+      "<button type='submit' onclick='alert(\"Are you sure?\");'>Select</button>\n" .
+      "</form>\n";
+  } else {
+    // No button
+    return "";
+  }
 
 }
