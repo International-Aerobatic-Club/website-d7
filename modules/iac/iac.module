@@ -951,7 +951,7 @@ function _iac_gen_practice_slots($contest) {
 
     $slot_time = $start;
 
-    while ($slot_time < $end) {
+    while ($slot_time <= $end) {
 
       $i += 1;
 
