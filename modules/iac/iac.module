@@ -994,6 +994,38 @@ function _iac_gen_practice_slots($contest) {
 }
 
 
+function _iac_select_practice_slot($nid) {
+
+  global $user;
+
+  // Make sure we got the nid parameter
+  if ($nid == NULL) {
+    drupal_set_message('nid not specified', 'error');
+    return;
+  }
+
+  // Load the practice slot record
+  $slot = node_load($nid);
+
+  // Make sure it actually is a practice slot
+  if ($slot->type != 'practice_slot') { return '<em>Wrong node type!</em>'; }
+
+  // Make sure the slot is owned by the current user
+  if ($slot->uid != 0) {
+    drupal_set_message('This practice slot is assigned to someone else', 'error');
+    return;
+  }
+
+  $slot->uid = $user->uid;
+  node_save($slot);
+
+  drupal_set_message('Your practice slot is now reserved', 'info');
+  drupal_goto('practice-slots');
+
+}
+
+
+
 function _iac_relinquish_practice_slot($nid) {
 
   global $user;
@@ -1013,8 +1045,7 @@ function _iac_relinquish_practice_slot($nid) {
   $slot->uid = 0;
   node_save($slot);
 
-
-  return '<strong>You have relinquished the practice slot</strong>';
+  drupal_set_message('You have relinquished the practice slot', 'info');
 
 }
 
