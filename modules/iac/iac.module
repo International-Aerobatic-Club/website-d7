@@ -1071,7 +1071,7 @@ function _iac_practice_slot_filter_execute($slot_id, $pre_reg_contests) {
 
   // Return FALSE (i.e., do *not* filter out this row) if the practice slot's contest ID
   // matches a contest for which the user has pre-registered
-  return !array_search($contest_id, $pre_reg_contests);
+  return !(array_search($contest_id, $pre_reg_contests) !== FALSE);
 
 }
 
