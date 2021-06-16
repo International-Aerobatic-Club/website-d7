@@ -1031,26 +1031,34 @@ function _iac_relinquish_practice_slot($nid) {
   global $user;
 
   // Make sure we got the nid parameter
-  if ($nid == NULL) { return '<em>Node ID not provided!</em>'; }
+  if ($nid == NULL) {
+    drupal_set_message('Node ID not provided!', 'error');
+    return;
+  }
 
   // Load the practice slot record
   $slot = node_load($nid);
 
   // Make sure it actually is a practice slot
-  if ($slot->type != 'practice_slot') { return '<em>Wrong node type!</em>'; }
+  if ($slot->type != 'practice_slot') {
+    drupal_set_message('Wrong node type!', 'error');
+    return;
+  }
 
   // Make sure the slot is owned by either Anonymous or the current user
-  if ($user->uid > 0 && $slot->uid != $user->uid) { return '<em>This slot does not belong to you!</em>'; }
+  if ($user->uid > 0 && $slot->uid != $user->uid) {
+    drupal_set_message('This slot does not belong to you!>', 'error');
+    return;
+  }
 
   $slot->uid = 0;
   node_save($slot);
 
   drupal_set_message('You have relinquished the practice slot', 'info');
 
-}
+  drupal_goto('practice-slots');
 
-
-
+} 
 // Setup code for the PHP Views filter
 function _iac_practice_slot_filter_setup() {
 
