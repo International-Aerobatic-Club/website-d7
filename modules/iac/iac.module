@@ -440,8 +440,14 @@ function _iac_contest_fees($reg_id) {
   <input type="hidden" name="item_name" value="$item">
   <input type="hidden" name="amount" value="$price">
   <input type="hidden" name="currency_code" value="USD">
-  <input type="hidden" name="return" value="$base_url/practice-slots">
+EOTEXT;
 
+  if (_iac_contest_accepts_practice_reservations($contest)) {
+    $rval .= '<input type="hidden" name="return" value="$base_url/practice-slots">';
+  }
+
+
+  $rval .= <<<EOTEXT2
   <!-- Display the payment button. -->
   <input type="image" name="submit"
     src="https://www.paypalobjects.com/en_US/i/btn/btn_cart_LG.gif"
@@ -450,8 +456,8 @@ function _iac_contest_fees($reg_id) {
     src="https://www.paypalobjects.com/en_US/i/scr/pixel.gif">
 </form>
 </td>
-EOTEXT;
-    $rval .= "</td>";
+EOTEXT2;
+
     $rval .= "</tr>\n";
 
   }
@@ -918,25 +924,12 @@ function iac_query_alter($query) {
 function _iac_gen_practice_slots($contest) {
 
   global $user;
+  
+  // Don't generate practice slots unless the contest has configured them
+  if (!_iac_contest_accepts_practice_reservations($contest)) { return; }
 
   // Load the duration of each practice slot, in minutes
   $duration = _dili_efv($contest->field_practice_slot_duration);
-
-  // Do nothing unless the practice slot duration is defined
-  if ($duration == NULL) { return; }
-
-  // See if there are any practice_slot records for this contest
-  // !!! Replace with Drupal-style query
-  $result = db_query(
-    "SELECT * FROM field_data_field_contest " .
-    "  WHERE bundle='practice_slot' " .
-    "    AND field_contest_target_id = $contest->nid " .
-    "  LIMIT 1;"
-  )->fetchField();
-
-  // Bail out if the query found a practice slot record
-  if ($result != FALSE) { return; }
-
 
   // Get the array of practice periods (0-n in length)
   $periods = $contest->field_practice_periods['und'];
@@ -1059,6 +1052,10 @@ function _iac_relinquish_practice_slot($nid) {
   drupal_goto('practice-slots');
 
 } 
+
+
+
+
 // Setup code for the PHP Views filter
 function _iac_practice_slot_filter_setup() {
 
@@ -1182,5 +1179,19 @@ function _iac_practice_slot_action_button($slot, $contests_with_reservations) {
     // No button
     return "";
   }
+
+}
+
+
+
+// Returns a boolean that indicates whether a contest listing includes the
+// practice slot duration and at least one practice period.
+function _iac_contest_accepts_practice_reservations($contest) {
+
+  // Do nothing unless the practice slot duration is defined
+  if (_dili_efv($contest->field_practice_slot_duration) == NULL) { return FALSE; }
+
+  // Return TRUE if more practice periods is defined, else return FALSE
+  return isset($contest->field_practice_periods['und']);
 
 }
