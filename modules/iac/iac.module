@@ -443,7 +443,7 @@ function _iac_contest_fees($reg_id) {
 EOTEXT;
 
   if (_iac_contest_accepts_practice_reservations($contest)) {
-    $rval .= '<input type="hidden" name="return" value="$base_url/practice-slots">';
+    $rval .= '<input type="hidden" name="return" value="$base_url/my-practice-slots">';
   }
 
 
@@ -639,7 +639,6 @@ function _iac_pre_reg_link($cid) {
 
     // Did we find an existing pre-registration record?
     if (empty($result)) {
-
       // No existing record
 
       # Pre-registration is only offered to current, logged-in members
@@ -928,6 +927,10 @@ function _iac_gen_practice_slots($contest) {
   // Don't generate practice slots unless the contest has configured them
   if (!_iac_contest_accepts_practice_reservations($contest)) { return; }
 
+  // Get the time zone of the first practice period
+  // Note: We assume that if there's more than one practice period, they all have the same TZ
+  $ctz = new DateTimeZone($contest->field_practice_periods['und'][0]['timezone']);
+
   // Load the duration of each practice slot, in minutes
   $duration = _dili_efv($contest->field_practice_slot_duration);
 
@@ -940,12 +943,17 @@ function _iac_gen_practice_slots($contest) {
   // Iterate over the periods
   foreach($periods as $period) {
 
-    $start = DateTime::createFromFormat('Y-m-d H:i:s T', $period['value'] . ' UTC');
-    $end = DateTime::createFromFormat('Y-m-d H:i:s T', $period['value2'] . ' UTC');
+    // Convert the practice period start/end times into DateTime objects
+    $start = DateTime::createFromFormat('U', $period['value']);
+    $start->setTimezone($ctz);
+
+    $end = DateTime::createFromFormat('U', $period['value2']);
+    $end->setTimezone($ctz);
+
 
     $slot_time = $start;
 
-    while ($slot_time <= $end) {
+    while ($slot_time < $end) {
 
       $i += 1;
 
@@ -965,11 +973,7 @@ function _iac_gen_practice_slots($contest) {
 
       // Fill in the fields
       $slot->field_contest = _dili_sfv($contest->nid, 'target_id');
-      $slot->field_start_time['und'][0] = array(
-        'value' => format_date($slot_time->getTimestamp(), 'custom', 'Y-m-d H:i:s', 'UTC'),
-        'timezone' => 'UTC',
-        'timezone_db' => 'UTC',
-      );
+      $slot->field_start_time['und'][0]['value'] = $slot_time->format('Y-m-d H:i');
 
       // Generate the title: contest nid + UID (which starts as 0 / Anonymous)
       $slot->title = 'contest-' . $contest->nid . '-slot-' . sprintf('%03d', $i);
@@ -978,9 +982,10 @@ function _iac_gen_practice_slots($contest) {
       node_save($slot);
 
       // Move to the next slot time
-      $slot_time->add(DateInterval::createFromDateString($duration . " minutes"));
+      $slot_time->modify("+$duration minutes");
 
-    } // while
+
+    } // while ($slot_time < $end)
 
   } // foreach $periods
 
@@ -1001,9 +1006,9 @@ function _iac_select_practice_slot($nid) {
   $slot = node_load($nid);
 
   // Make sure it actually is a practice slot
-  if ($slot->type != 'practice_slot') { return '<em>Wrong node type!</em>'; }
+  if ($slot->type != 'practice_slot') { return 'Wrong node type!'; }
 
-  // Make sure the slot is owned by the current user
+  // Make sure the slot isn't owned by another user
   if ($slot->uid != 0) {
     drupal_set_message('This practice slot is assigned to someone else', 'error');
     return;
@@ -1013,7 +1018,7 @@ function _iac_select_practice_slot($nid) {
   node_save($slot);
 
   drupal_set_message('Your practice slot is now reserved', 'info');
-  drupal_goto('practice-slots');
+  drupal_goto('my-practice-slots');
 
 }
 
@@ -1049,7 +1054,7 @@ function _iac_relinquish_practice_slot($nid) {
 
   drupal_set_message('You have relinquished the practice slot', 'info');
 
-  drupal_goto('practice-slots');
+  drupal_goto('my-practice-slots');
 
 } 
 
@@ -1082,6 +1087,12 @@ function _iac_practice_slot_filter_setup() {
     ->fieldCondition('field_contest', 'target_id', $future_cids, 'IN')
     ->fieldCondition('field_member', 'target_id', $user->uid, '=')
     ->execute();
+
+  // Check for a null result
+  if (empty($results)) {
+    drupal_set_message('You have no future practice slot reservations.');
+    return Array();
+  }
 
   // Array of contest IDs for which the user has pre-registered
   $pre_reg_contests = array();
