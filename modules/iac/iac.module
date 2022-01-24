@@ -923,9 +923,30 @@ function iac_query_alter($query) {
 function _iac_gen_practice_slots($contest) {
 
   global $user;
-  
-  // Don't generate practice slots unless the contest has configured them
-  if (!_iac_contest_accepts_practice_reservations($contest)) { return; }
+
+  // Get the list of associated practice slots, if any
+  $query = new EntityFieldQuery();
+  $results = $query->entityCondition('entity_type', 'node')
+    ->entityCondition('bundle', 'practice_slot')
+    ->fieldCondition('field_contest', 'target_id', $contest->nid)
+    ->fieldOrderBy('field_start_time', 'value', 'ASC')
+    ->execute();
+
+  // If the contest doesn't accept practice slot reservations,
+  // delete any that might exist
+  if (!_iac_contest_accepts_practice_reservations($contest)) {
+    foreach($results['node'] as $nid => $result) { node_delete($nid); }
+    return;
+  }
+
+  // Else the contest does accept practice slot reservations
+  // Store any existing practice slot records in an Array, keyed by start time
+  $existing_slots = Array();
+  foreach($results['node'] as $key => $result) {
+    $slot = node_load($key);
+    $existing_slots[$key] = _dili_efv($slot->field_start_time);
+  }
+
 
   // Get the time zone of the first practice period
   // Note: We assume that if there's more than one practice period, they all have the same TZ
@@ -934,7 +955,7 @@ function _iac_gen_practice_slots($contest) {
   // Load the duration of each practice slot, in minutes
   $duration = _dili_efv($contest->field_practice_slot_duration);
 
-  // Get the array of practice periods (0-n in length)
+  // Get the array of practice periods
   $periods = $contest->field_practice_periods['und'];
 
   // Loop counter
@@ -957,35 +978,58 @@ function _iac_gen_practice_slots($contest) {
 
       $i += 1;
 
-      // Build the Practice Slot node
-      // Adapted from https://knackforge.com/blog/vishnu/programmatically-create-node-drupal-7
-      $slot = new stdClass();
+      // Format the start time as a string
+      $st = $slot_time->format('Y-m-d H:i');
 
-      // Boilerplate
-      $slot->type = 'practice_slot';
-      $slot->language = LANGUAGE_NONE;
-      node_object_prepare($slot);
-      $slot->uid = 0;      // Anonymous
-      $slot->status = 1;   // (1 or 0): published or unpublished
-      $slot->promote = 0;  // (1 or 0): promoted to front page or not
-      $slot->sticky = 0;   // (1 or 0): sticky at top of lists or not
-      $slot->comment = 0;  // 2 = comments open, 1 = comments closed, 0 = comments hidden
+      // If there's an existing slot for this time, remove it from the $existing_slots array and move on to the next slot
+      if ($key = array_search($st, $existing_slots)) {
+          unset($existing_slots[$key]);
+      } else {
 
-      // Fill in the fields
-      $slot->field_contest = _dili_sfv($contest->nid, 'target_id');
-      $slot->field_start_time['und'][0]['value'] = $slot_time->format('Y-m-d H:i');
+        // Else we need to build the Practice Slot node
+        // Adapted from https://knackforge.com/blog/vishnu/programmatically-create-node-drupal-7
+        $slot = new stdClass();
 
-      // Generate the title: contest nid + UID (which starts as 0 / Anonymous)
-      $slot->title = 'contest-' . $contest->nid . '-slot-' . sprintf('%03d', $i);
+        // Boilerplate
+        $slot->type = 'practice_slot';
+        $slot->language = LANGUAGE_NONE;
+        node_object_prepare($slot);
+        $slot->uid = 0;      // Anonymous
+        $slot->status = 1;   // (1 or 0): published or unpublished
+        $slot->promote = 0;  // (1 or 0): promoted to front page or not
+        $slot->sticky = 0;   // (1 or 0): sticky at top of lists or not
+        $slot->comment = 0;  // 2 = comments open, 1 = comments closed, 0 = comments hidden
 
-      // Save it
-      node_save($slot);
+        // Fill in the fields
+        $slot->field_contest = _dili_sfv($contest->nid, 'target_id');
+        $slot->field_start_time['und'][0]['value'] = $st;
+
+        // Generate the title: contest nid + UID (which starts as 0 / Anonymous)
+        $slot->title = 'contest-' . $contest->nid . '-slot-' . sprintf('%03d', $i);
+
+        // Save it
+        node_save($slot);
+
+      }
 
       // Move to the next slot time
       $slot_time->modify("+$duration minutes");
 
-
     } // while ($slot_time < $end)
+
+    // Any remaining entries in $existing_slots are no longer valid, so delete them
+    foreach($existing_slots as $slot_id => $eslot) {
+
+      $slot = node_load($slot_id);
+
+      if ($slot->uid > 1) {
+        $u = user_load($slot->uid);
+        drupal_set_message("Deleted practice slot at " . _dili_efv($slot->field_start_time) . " for " . $u->name, 'warning');
+      }
+
+      node_delete($slot_id);
+
+    }
 
   } // foreach $periods
 
@@ -1198,7 +1242,6 @@ function _iac_practice_slot_action_button($slot, $contests_with_reservations) {
 // Returns a boolean that indicates whether a contest listing includes the
 // practice slot duration and at least one practice period.
 function _iac_contest_accepts_practice_reservations($contest) {
-
   // Do nothing unless the practice slot duration is defined
   if (_dili_efv($contest->field_practice_slot_duration) == NULL) { return FALSE; }
 
