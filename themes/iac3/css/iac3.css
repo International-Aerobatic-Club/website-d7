@@ -345,6 +345,48 @@ table.regional-standings-2006 td:nth-child(5) { text-align: center; }
 form#quiz-question-answering-form input#edit-navigation-submit { color: green; font-weight: bold; }
 
 
+
+
+
+/* Lettering for multiple choice answers */
+/* Adapted from https://www.drupal.org/project/quiz/issues/2864620 */
+
+
+/* Indent true/false and multiple choice divs */
+.page-node-take div[id^=edit-question-][id$=-answer] input { margin-right: 20px; }
+.page-node-take tr.multichoice-row td:nth-child(2) { padding-left: 0px; }
+
+/* Display a letter for each true/false answer */
+.page-node-take div[id^=edit-question-][id$=-answer] div:nth-child(1) label:before {
+  content:"A."; color: #666;position:absolute; z-index:3; margin-left: -18px; margin-top: 1px;
+}
+.page-node-take div[id^=edit-question-][id$=-answer] div:nth-child(2) label:before {
+  content:"B."; color: #666;position:absolute; z-index:3; margin-left: -18px; margin-top: 1px;
+}
+
+/* Display a letter for each multiple choice answer */
+.page-node-take tr.multichoice-row:nth-child(1) p:before {
+  content:"A."; color: #666;position:absolute; z-index:3; margin-left: -20px;
+}
+.page-node-take tr.multichoice-row:nth-child(2) p:before {
+  content:"B."; color: #666;position:absolute; z-index:3; margin-left: -20px;
+}
+.page-node-take tr.multichoice-row:nth-child(3) p:before {
+  content:"C."; color: #666;position:absolute; z-index:3; margin-left: -20px;
+}
+.page-node-take tr.multichoice-row:nth-child(4) p:before {
+  content:"D."; color: #666;position:absolute; z-index:3; margin-left: -20px;
+}
+.page-node-take tr.multichoice-row:nth-child(5) p:before {
+  content:"E."; color: #666;position:absolute; z-index:3; margin-left: -20px;
+}
+.page-node-take tr.multichoice-row:nth-child(6) p:before {
+  content:"F."; color: #666;position:absolute; z-index:3; margin-left: -20px;
+}
+
+
+
+
 /* Hide 'N/A' as an option for the Contest 'Sanctioned' Boolean field */
 div.form-item-field-sanctioned-und #edit-field-sanctioned-und-none,
 div.form-item-field-sanctioned-und label[for=edit-field-sanctioned-und-none] { display: none; }
