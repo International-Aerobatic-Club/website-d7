@@ -31,7 +31,9 @@ foreach($profile_results['profile2'] as $pid=>$ign) {
 	foreach($profiles as $profile) {
 		$i += 1;
 		if (($i % 100) == 0) { print ("$i\n"); }
-		$profile->field_current['und'][0]['value'] = '0';
-		entity_save('profile2', $profile);
+		if ($profile->field_current['und'][0]['value'] == '1') {
+      $profile->field_current['und'][0]['value'] = '0';
+      entity_save('profile2', $profile);
+    }
 	}
 }
