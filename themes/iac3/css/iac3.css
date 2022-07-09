@@ -344,6 +344,9 @@ table.regional-standings-2006 td:nth-child(5) { text-align: center; }
 /* Green backround for quiz 'Next' buttons */
 form#quiz-question-answering-form input#edit-navigation-submit { color: green; font-weight: bold; }
 
+/* Place the answer radio buttons at the top of their table cells */
+tr.multichoice-row td { vertical-align: top; }
+
 
 
 
@@ -443,3 +446,6 @@ form.node-flight_school-form div#field-country-add-more-wrapper div.description 
   position: relative;
   top: 1px;
 }
+
+/* Increase the height of the taxonomy terms <select> menu on the Quiz form */
+#edit-field-quiz-tags-und { height: 160px; }
