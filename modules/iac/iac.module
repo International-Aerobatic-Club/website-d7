@@ -1018,21 +1018,16 @@ function _iac_gen_practice_slots($contest) {
 
     } // while ($slot_time < $end)
 
-    // Any remaining entries in $existing_slots are no longer valid, so delete them
-    foreach($existing_slots as $slot_id => $eslot) {
-
-      $slot = node_load($slot_id);
-
-      if ($slot->uid > 1) {
-        $u = user_load($slot->uid);
-        drupal_set_message("Deleted practice slot at " . _dili_efv($slot->field_start_time) . " for " . $u->name, 'warning');
-      }
-
-      node_delete($slot_id);
-
-    }
-
   } // foreach $periods
+
+
+  // Any remaining entries in $existing_slots are no longer valid, so delete them
+  foreach($existing_slots as $slot_id => $eslot) {
+    $slot = node_load($slot_id);
+    $u = user_load($slot->uid);
+    node_delete($slot_id);
+    drupal_set_message("Deleted practice slot at " . _dili_efv($slot->field_start_time) . " for " . $u->name, 'warning');
+  }
 
 }
 
