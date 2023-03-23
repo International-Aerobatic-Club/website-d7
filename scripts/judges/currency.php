@@ -105,7 +105,7 @@ $contest_query = new EntityFieldQuery();
 $contest_results = $contest_query->entityCondition('entity_type', 'node', '=')
   ->entityCondition('bundle', 'contest', '=')
   ->propertyCondition('status', NODE_PUBLISHED)
-  ->fieldCondition('field_contest_dates', 'value', "$prev_year-01-01", '>=')
+  ->fieldCondition('field_contest_dates', 'value', "$prev_year2-01-01", '>=')
   ->fieldCondition('field_contest_dates', 'value', "$prev_year-12-31", '<=')
   ->execute();
 
@@ -116,8 +116,7 @@ $cids = array_keys($contest_results['node']);
 
 
 
-##################### Get the previous year's Line Judge & Chief Judge
-##################### judging_experience records for the non-current judges
+##################### Get the previous two years of records for the non-current Line Judges & Chief Judges
 
 $je_query = new EntityFieldQuery();
 $je_results = $je_query->entityCondition('entity_type', 'node', '=')
